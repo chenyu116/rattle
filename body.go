@@ -45,7 +45,7 @@ func (p bodyOriginalProvider) GetBody() (io.Reader, string, error) {
 // jsonBodyProvider encodes a JSON tagged struct value as a Body for requests.
 // See https://golang.org/pkg/encoding/json/#MarshalIndent for details.
 type bodyProviderJson struct {
-	body interface{}
+	body       interface{}
 	escapeHTML bool
 }
 
@@ -77,28 +77,30 @@ func (p bodyProviderForm) GetBody() (io.Reader, string, error) {
 type bodyProviderFileStruct struct {
 	fileName  string
 	fieldName string
-	content   io.Reader
+	file      io.Reader
 }
 
 type bodyProviderFile struct {
 	body interface{}
-	file    bodyProviderFileStruct
+	file bodyProviderFileStruct
 }
 
 func (p bodyProviderFile) GetBody() (io.Reader, string, error) {
 	if p.file.fileName == "" {
-		return nil, "", fmt.Errorf("field not defined %s", "fileName")
+		return nil, "", fmt.Errorf("%s not defined", "fileName")
 	}
 	if p.file.fieldName == "" {
-		p.file.fieldName = p.file.fileName
+		return nil, "", fmt.Errorf("%s not defined", "fieldName")
 	}
+
 	body := new(bytes.Buffer)
 	writer := multipart.NewWriter(body)
 	fw, err := writer.CreateFormFile(p.file.fieldName, p.file.fileName)
 	if err != nil {
 		return nil, "", fmt.Errorf("CreateFormFile %v", err)
 	}
-	_, err = io.Copy(fw, p.file.content)
+
+	_, err = io.Copy(fw, p.file.file)
 	if err != nil {
 		return nil, "", fmt.Errorf("copying fileWriter %v", err)
 	}

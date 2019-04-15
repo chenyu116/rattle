@@ -81,7 +81,7 @@ func TestProxy(t *testing.T) {
 	config.UseProxy = true
 	config.ProxyHost = "http://127.0.0.1:1080"
 	Rattle := New(config).BaseURL("http://example.com").AddQuery(params)
-	_, err := Rattle.Send()
+	_, _, err := Rattle.Send()
 	if err != nil {
 		t.Errorf("expected %v", err)
 	}
@@ -106,7 +106,7 @@ func TestRequest_query(t *testing.T) {
 func TestRequest_headers(t *testing.T) {
 	config := NewConfig()
 	cases := []struct {
-		rattle          *Rattle
+		rattle         *Rattle
 		expectedHeader map[string][]string
 	}{
 		{New(config).SetHeader("authorization", "OAuth key=\"value\""), map[string][]string{"Authorization": []string{"OAuth key=\"value\""}}},

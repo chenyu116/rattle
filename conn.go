@@ -28,7 +28,7 @@ type timeoutConn struct {
 }
 
 func newTimeoutConn(conn net.Conn, timeout HTTPTimeout) *timeoutConn {
-	_ = conn.SetDeadline(time.Now().Add(timeout.MaxTimeout))
+	conn.SetDeadline(time.Now().Add(timeout.MaxTimeout))
 	return &timeoutConn{
 		conn:    conn,
 		timeout: timeout,

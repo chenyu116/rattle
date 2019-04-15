@@ -18,14 +18,13 @@ package rattle
 
 import (
 	"encoding/base64"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
 	"time"
-
-	//"time"
 
 	goquery "github.com/google/go-querystring/query"
 )
@@ -198,11 +197,11 @@ func (r *Rattle) BodyOriginal(bodyOriginal io.Reader) *Rattle {
 }
 
 // BodyJSON sets the json body
-func (r *Rattle) BodyJSON(bodyJSON interface{} , escapeHTML bool) *Rattle {
+func (r *Rattle) BodyJSON(bodyJSON interface{}, escapeHTML bool) *Rattle {
 	if bodyJSON == nil {
 		return r
 	}
-	return r.setbodyProvider(bodyProviderJson{body: bodyJSON,escapeHTML:escapeHTML})
+	return r.setbodyProvider(bodyProviderJson{body: bodyJSON, escapeHTML: escapeHTML})
 }
 
 // BodyForm sets the form body
@@ -216,6 +215,14 @@ func (r *Rattle) BodyForm(bodyForm interface{}) *Rattle {
 // BodyFile sets the send file. The value pointed to by the bodyForm
 func (r *Rattle) BodyFile(fields interface{}, file bodyProviderFileStruct) *Rattle {
 	return r.setbodyProvider(bodyProviderFile{body: fields, file: file})
+}
+
+func NewBodyFile(fieldname, filename string, file io.Reader) bodyProviderFileStruct {
+	return bodyProviderFileStruct{
+		fieldName: fieldname,
+		fileName:  filename,
+		file:      file,
+	}
 }
 
 // GetRequest returns a new http.Request created with the request properties.
@@ -244,7 +251,14 @@ func (r *Rattle) GetRequest() (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
+	if !r.config.ReUseTCP {
+		req.Close = true
+	}
+
 	setHeaders(req, r.header)
+	if req.Header.Get("User-Agent") == "" {
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.119 Safari/537.36")
+	}
 
 	if reqContentType != "" {
 		req.Header.Set(contentType, reqContentType)
@@ -296,10 +310,10 @@ func (r *Rattle) GetResponse() *http.Response {
 }
 
 // Send is shorthand for calling Rattle and Do.
-func (r *Rattle) Send() ([]byte, error) {
+func (r *Rattle) Send() ([]byte, int, error) {
 	req, err := r.GetRequest()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	return r.Do(req)
 }
@@ -307,13 +321,24 @@ func (r *Rattle) Send() ([]byte, error) {
 // Do sends an HTTP Rattle and returns the response.
 // are write into the value pointed to by result.
 // Any error sending the Rattle response is returned.
-func (r *Rattle) Do(req *http.Request) ([]byte, error) {
+func (r *Rattle) Do(req *http.Request) ([]byte, int, error) {
 	resp, err := r.httpClient.Do(req)
+	defer func() {
+		if resp != nil {
+			resp.Close = true
+			resp.Body.Close()
+		}
+	}()
 	if err != nil {
 		if r.config.RetryTimes > 0 {
 			var retryTimes uint = 0
-			retryTicker := time.NewTicker(r.config.HTTPTimeout.ConnectTimeout + r.config.HTTPTimeout.ReadTimeout)
+			retryTicker := time.NewTicker(r.config.HTTPTimeout.ConnectTimeout)
 			for range retryTicker.C {
+				if retryTimes >= r.config.RetryTimes {
+					retryTicker.Stop()
+					err = fmt.Errorf("retryTimes:%v %s", retryTimes, err.Error())
+					return nil, 0, err
+				}
 				retryTimes++
 				resp, err = r.httpClient.Do(req)
 				if err == nil {
@@ -321,20 +346,18 @@ func (r *Rattle) Do(req *http.Request) ([]byte, error) {
 					break
 				}
 			}
-		}else{
-			return nil , err
+		} else {
+			return nil, 0, err
 		}
 	}
-
-	// when err is nil, resp contains a non-nil resp.Body which must be closed
-	defer func() {
-		resp.Close = true
-		_ = resp.Body.Close()
-	}()
-
 	r.resp = resp
 
-	return ioutil.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		return nil, resp.StatusCode, fmt.Errorf("%s", resp.Status)
+	}
+	res, err := ioutil.ReadAll(resp.Body)
+
+	return res, resp.StatusCode, err
 }
 
 // AddQuery add queries for GET request

@@ -38,11 +38,12 @@ type Config struct {
 	IsAuthProxy   bool        // 代理服务器是否使用用户认证
 	ProxyUser     string      // 代理服务器认证用户名
 	ProxyPassword string      // 代理服务器认证密码
+	ReUseTCP      bool        // 为同一地址多次请求复用TCP连接
 }
 
 // 获取默认配置
 func NewConfig() *Config {
-	config := Config{}
+	config := new(Config)
 
 	config.RetryTimes = 1
 
@@ -57,6 +58,7 @@ func NewConfig() *Config {
 	config.IsAuthProxy = false
 	config.ProxyUser = ""
 	config.ProxyPassword = ""
+	config.ReUseTCP = false
 
-	return &config
+	return config
 }
