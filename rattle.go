@@ -18,15 +18,13 @@ package rattle
 
 import (
 	"encoding/base64"
-	"fmt"
+	goquery "github.com/google/go-querystring/query"
+	"golang.org/x/net/context"
 	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
-	"time"
-
-	goquery "github.com/google/go-querystring/query"
 )
 
 type Rattle struct {
@@ -53,7 +51,7 @@ func New(config *Config) *Rattle {
 		config = NewConfig()
 	}
 	transport := &http.Transport{
-		Dial: func(network, addr string) (net.Conn, error) {
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			conn, err := net.DialTimeout(network, addr, config.HTTPTimeout.ConnectTimeout)
 			if err != nil {
 				return nil, err
@@ -217,10 +215,10 @@ func (r *Rattle) BodyFile(fields interface{}, file bodyProviderFileStruct) *Ratt
 	return r.setbodyProvider(bodyProviderFile{body: fields, file: file})
 }
 
-func NewBodyFile(fieldname, filename string, file io.Reader) bodyProviderFileStruct {
+func NewBodyFile(fieldName, fileName string, file io.Reader) bodyProviderFileStruct {
 	return bodyProviderFileStruct{
-		fieldName: fieldname,
-		fileName:  filename,
+		fieldName: fieldName,
+		fileName:  fileName,
 		file:      file,
 	}
 }
@@ -254,7 +252,6 @@ func (r *Rattle) GetRequest() (*http.Request, error) {
 	if !r.config.ReUseTCP {
 		req.Close = true
 	}
-
 	setHeaders(req, r.header)
 	if req.Header.Get("User-Agent") == "" {
 		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.119 Safari/537.36")
@@ -310,51 +307,31 @@ func (r *Rattle) GetResponse() *http.Response {
 }
 
 // Send is shorthand for calling Rattle and Do.
-func (r *Rattle) Send() ([]byte, int, error) {
-	req, err := r.GetRequest()
+func (r *Rattle) Send() (result []byte, code int, err error) {
+	var req *http.Request
+	req, err = r.GetRequest()
+	if err != nil {
+		return []byte{}, 0, err
+	}
+	result, code, err = r.Do(req)
+	return
+}
+
+// Do sends an HTTP Request and returns the result. status code and error
+func (r *Rattle) Do(req *http.Request) ([]byte, int, error) {
+	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return nil, 0, err
 	}
-	return r.Do(req)
-}
-
-// Do sends an HTTP Rattle and returns the response.
-// are write into the value pointed to by result.
-// Any error sending the Rattle response is returned.
-func (r *Rattle) Do(req *http.Request) ([]byte, int, error) {
-	resp, err := r.httpClient.Do(req)
 	defer func() {
-		if resp != nil {
-			resp.Close = true
-			resp.Body.Close()
-		}
+		resp.Close = true
+		resp.Body.Close()
 	}()
-	if err != nil {
-		if r.config.RetryTimes > 0 {
-			var retryTimes uint = 0
-			retryTicker := time.NewTicker(r.config.HTTPTimeout.ConnectTimeout)
-			for range retryTicker.C {
-				if retryTimes >= r.config.RetryTimes {
-					retryTicker.Stop()
-					err = fmt.Errorf("retryTimes:%v %s", retryTimes, err.Error())
-					return nil, 0, err
-				}
-				retryTimes++
-				resp, err = r.httpClient.Do(req)
-				if err == nil {
-					retryTicker.Stop()
-					break
-				}
-			}
-		} else {
-			return nil, 0, err
-		}
-	}
 	r.resp = resp
 
-	if resp.StatusCode >= 400 {
-		return nil, resp.StatusCode, fmt.Errorf("%s", resp.Status)
-	}
+	//if resp.StatusCode >= 400 {
+	//	return nil, resp.StatusCode, fmt.Errorf("%s", resp.Status)
+	//}
 	res, err := ioutil.ReadAll(resp.Body)
 
 	return res, resp.StatusCode, err
