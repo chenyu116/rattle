@@ -17,6 +17,7 @@
 package rattle
 
 import (
+	"crypto/tls"
 	"encoding/base64"
 	goquery "github.com/google/go-querystring/query"
 	"golang.org/x/net/context"
@@ -60,6 +61,7 @@ func New(config *Config) *Rattle {
 		},
 		ResponseHeaderTimeout: config.HTTPTimeout.HeaderTimeout,
 		MaxIdleConnsPerHost:   2000,
+		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 	}
 
 	// Proxy
