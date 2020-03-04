@@ -17,48 +17,47 @@
 package rattle
 
 import (
-	"time"
+  "time"
 )
 
 // HTTPTimeout http timeout
 type HTTPTimeout struct {
-	ConnectTimeout time.Duration
-	ReadTimeout    time.Duration
-	WriteTimeout   time.Duration
-	HeaderTimeout  time.Duration
-	MaxTimeout     time.Duration
+  ConnectTimeout time.Duration
+  ReadTimeout    time.Duration
+  WriteTimeout   time.Duration
+  HeaderTimeout  time.Duration
+  MaxTimeout     time.Duration
 }
 
 // Config configure
 type Config struct {
-	RetryTimes    uint        // 失败重试次数
-	HTTPTimeout   HTTPTimeout // HTTP的超时时间设置
-	UseProxy      bool        // 是否使用代理
-	ProxyHost     string      // 代理服务器地址
-	IsAuthProxy   bool        // 代理服务器是否使用用户认证
-	ProxyUser     string      // 代理服务器认证用户名
-	ProxyPassword string      // 代理服务器认证密码
-	ReUseTCP      bool        // 为同一地址多次请求复用TCP连接
+  HTTPTimeout        HTTPTimeout // HTTP的超时时间设置
+  UseProxy           bool        // 是否使用代理
+  ProxyHost          string      // 代理服务器地址
+  IsAuthProxy        bool        // 代理服务器是否使用用户认证
+  ProxyUser          string      // 代理服务器认证用户名
+  ProxyPassword      string      // 代理服务器认证密码
+  ReUseTCP           bool        // 为同一地址多次请求复用TCP连接
+  InsecureSkipVerify bool        // 忽略证书验证
 }
 
 // 获取默认配置
 func NewConfig() *Config {
-	config := new(Config)
+  config := new(Config)
 
-	config.RetryTimes = 1
+  config.HTTPTimeout.ConnectTimeout = time.Second * 3 // 3s
+  config.HTTPTimeout.ReadTimeout = time.Second * 5    // 5s
+  config.HTTPTimeout.WriteTimeout = time.Second * 5   // 5s
+  config.HTTPTimeout.HeaderTimeout = time.Second * 5  // 5s
+  config.HTTPTimeout.MaxTimeout = time.Second * 300   // 300s
 
-	config.HTTPTimeout.ConnectTimeout = time.Second * 3 // 3s
-	config.HTTPTimeout.ReadTimeout = time.Second * 5    // 5s
-	config.HTTPTimeout.WriteTimeout = time.Second * 5   // 5s
-	config.HTTPTimeout.HeaderTimeout = time.Second * 5  // 5s
-	config.HTTPTimeout.MaxTimeout = time.Second * 300   // 300s
+  config.UseProxy = false
+  config.ProxyHost = ""
+  config.IsAuthProxy = false
+  config.ProxyUser = ""
+  config.ProxyPassword = ""
+  config.ReUseTCP = false
+  config.InsecureSkipVerify = true
 
-	config.UseProxy = false
-	config.ProxyHost = ""
-	config.IsAuthProxy = false
-	config.ProxyUser = ""
-	config.ProxyPassword = ""
-	config.ReUseTCP = false
-
-	return config
+  return config
 }
