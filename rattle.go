@@ -17,332 +17,324 @@
 package rattle
 
 import (
-	"crypto/tls"
-	"encoding/base64"
-	goquery "github.com/google/go-querystring/query"
-	"golang.org/x/net/context"
-	"io"
-	"io/ioutil"
-	"net"
-	"net/http"
-	"net/url"
+  "crypto/tls"
+  "encoding/base64"
+  goquery "github.com/google/go-querystring/query"
+  "golang.org/x/net/context"
+  "io"
+  "io/ioutil"
+  "net"
+  "net/http"
+  "net/url"
 )
 
 type Rattle struct {
-	// http Client for doing Rattles
-	httpClient *http.Client
-	// HTTP method (GET, POST, etc.)
-	method string
-	// raw url string for Rattles
-	rawURL string
-	// stores key-values pairs to add to Rattle's Headers
-	header http.Header
-	// url tagged query structs
-	parameters []interface{}
-	// body provider
-	bodyProvider BodyProvider
-	// Rattle configs
-	config Config
-	// http.Response
-	resp *http.Response
+  // http Client for doing Rattles
+  httpClient *http.Client
+  // HTTP method (GET, POST, etc.)
+  method string
+  // raw url string for Rattles
+  rawURL string
+  // stores key-values pairs to add to Rattle's Headers
+  header http.Header
+  // url tagged query structs
+  parameters []interface{}
+  // body provider
+  bodyProvider BodyProvider
+  // Rattle configs
+  config Config
+  // http.Response
+  resp *http.Response
 }
 
-func New(config *Config) *Rattle {
-	if config == nil {
-		config = NewConfig()
-	}
-	transport := &http.Transport{
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			conn, err := net.DialTimeout(network, addr, config.HTTPTimeout.ConnectTimeout)
-			if err != nil {
-				return nil, err
-			}
-			return newTimeoutConn(conn, config.HTTPTimeout), nil
-		},
-		ResponseHeaderTimeout: config.HTTPTimeout.HeaderTimeout,
-		MaxIdleConnsPerHost:   2000,
-		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
-	}
+func New(cfg ...*Config) *Rattle {
+  config := NewConfig()
+  if len(cfg) > 0 {
+    config = cfg[0]
+  }
+  transport := &http.Transport{
+    DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+      conn, err := net.DialTimeout(network, addr, config.HTTPTimeout.ConnectTimeout)
+      if err != nil {
+        return nil, err
+      }
+      return newTimeoutConn(conn, config.HTTPTimeout), nil
+    },
+    ResponseHeaderTimeout: config.HTTPTimeout.HeaderTimeout,
+    TLSClientConfig:       &tls.Config{InsecureSkipVerify: config.InsecureSkipVerify},
+  }
 
-	// Proxy
-	if config.UseProxy {
-		proxyURL, err := url.Parse(config.ProxyHost)
-		if err == nil {
-			if config.IsAuthProxy {
-				proxyURL.User = url.UserPassword(config.ProxyUser, config.ProxyPassword)
-			}
-			transport.Proxy = http.ProxyURL(proxyURL)
-		}
-	}
-	return &Rattle{
-		httpClient: &http.Client{Transport: transport},
-		method:     GET,
-		header:     make(http.Header),
-		parameters: make([]interface{}, 0),
-	}
+  // Proxy
+  if config.UseProxy {
+    proxyURL, err := url.Parse(config.ProxyHost)
+    if err == nil {
+      if config.IsAuthProxy {
+        proxyURL.User = url.UserPassword(config.ProxyUser, config.ProxyPassword)
+      }
+      transport.Proxy = http.ProxyURL(proxyURL)
+    }
+  }
+  return &Rattle{
+    httpClient: &http.Client{Transport: transport},
+    method:     GET,
+    header:     make(http.Header),
+    parameters: make([]interface{}, 0),
+  }
 }
 
 func (r *Rattle) New() *Rattle {
-	// copy Headers pairs into new Header map
-	headerCopy := make(http.Header)
-	for k, v := range r.header {
-		headerCopy[k] = v
-	}
-	return &Rattle{
-		httpClient:   r.httpClient,
-		method:       r.method,
-		rawURL:       r.rawURL,
-		header:       headerCopy,
-		parameters:   append([]interface{}{}, r.parameters...),
-		bodyProvider: r.bodyProvider,
-	}
+  // copy Headers pairs into new Header map
+  headerCopy := make(http.Header)
+  for k, v := range r.header {
+    headerCopy[k] = v
+  }
+  return &Rattle{
+    httpClient:   r.httpClient,
+    method:       r.method,
+    rawURL:       r.rawURL,
+    header:       headerCopy,
+    parameters:   append([]interface{}{}, r.parameters...),
+    bodyProvider: r.bodyProvider,
+  }
 }
 
 // Base sets the rawURL. If you intend to extend the url with Path,
 // baseUrl should be specified with a trailing slash.
 func (r *Rattle) BaseURL(rawURL string) *Rattle {
-	r.rawURL = rawURL
-	return r
+  r.rawURL = rawURL
+  return r
 }
 
 // Head sets the Request method to HEAD and sets the given pathURL.
 func (r *Rattle) Head(pathURL string) *Rattle {
-	r.method = HEAD
-	return r.setPath(pathURL)
+  r.method = HEAD
+  return r.setPath(pathURL)
 }
 
 // Get sets the Request method to GET and sets the given pathURL.
 func (r *Rattle) Get(pathURL string) *Rattle {
-	r.method = GET
-	return r.setPath(pathURL)
+  r.method = GET
+  return r.setPath(pathURL)
 }
 
 // Post sets the Request method to POST and sets the given pathURL.
 func (r *Rattle) Post(pathURL string) *Rattle {
-	r.method = POST
-	return r.setPath(pathURL)
+  r.method = POST
+  return r.setPath(pathURL)
 }
 
 // Put sets the Request method to PUT and sets the given pathURL.
 func (r *Rattle) Put(pathURL string) *Rattle {
-	r.method = PUT
-	return r.setPath(pathURL)
+  r.method = PUT
+  return r.setPath(pathURL)
 }
 
 // Patch sets the Request method to PATCH and sets the given pathURL.
 func (r *Rattle) Patch(pathURL string) *Rattle {
-	r.method = PATCH
-	return r.setPath(pathURL)
+  r.method = PATCH
+  return r.setPath(pathURL)
 }
 
 // Delete sets the Sling method to DELETE and sets the given pathURL.
 func (r *Rattle) Delete(pathURL string) *Rattle {
-	r.method = DELETE
-	return r.setPath(pathURL)
+  r.method = DELETE
+  return r.setPath(pathURL)
 }
 
 // Options sets the Sling method to OPTIONS and sets the given pathURL.
 func (r *Rattle) Options(pathURL string) *Rattle {
-	r.method = OPTIONS
-	return r.setPath(pathURL)
+  r.method = OPTIONS
+  return r.setPath(pathURL)
 }
 
 // Path extends the rawURL with the given path by resolving the reference to
 // an absolute URL. If parsing errors occur, the rawURL is left unmodified.
 func (r *Rattle) setPath(path string) *Rattle {
-	hostURL, hostErr := url.Parse(r.rawURL)
-	pathURL, pathErr := url.Parse(path)
-	if hostErr == nil && pathErr == nil {
-		r.rawURL = hostURL.ResolveReference(pathURL).String()
-	}
-	return r
+  hostURL, hostErr := url.Parse(r.rawURL)
+  pathURL, pathErr := url.Parse(path)
+  if hostErr == nil && pathErr == nil {
+    r.rawURL = hostURL.ResolveReference(pathURL).String()
+  }
+  return r
 }
 
 // SetHeader sets the key, value pair in Headers, replacing existing values
 // associated with key. Header keys are canonicalized.
 func (r *Rattle) SetHeader(key, value string) *Rattle {
-	r.header.Set(key, value)
-	return r
+  r.header.Set(key, value)
+  return r
 }
 
 // SetBasicAuth sets the Authorization header to use HTTP Basic Authentication
 // with the provided username and password. With HTTP Basic Authentication
 // the provided username and password are not encrypted.
 func (r *Rattle) SetBasicAuth(username, password string) *Rattle {
-	return r.SetHeader("Authorization", "Basic "+genBasicAuth(username, password))
+  return r.SetHeader("Authorization", "Basic "+genBasicAuth(username, password))
 }
 
 // genBasicAuth returns the Host64 encoded username:password for basic auth copied
 // from net/http.
 func genBasicAuth(username, password string) string {
-	auth := username + ":" + password
-	return base64.StdEncoding.EncodeToString([]byte(auth))
+  auth := username + ":" + password
+  return base64.StdEncoding.EncodeToString([]byte(auth))
 }
 
 // BodyProvider sets body provider.
 func (r *Rattle) setbodyProvider(body BodyProvider) *Rattle {
-	if body == nil {
-		return r
-	}
-	r.bodyProvider = body
-	return r
+  if body == nil {
+    return r
+  }
+  r.bodyProvider = body
+  return r
 }
 
 // Body sets the Rattle plain body
 func (r *Rattle) BodyOriginal(bodyOriginal io.Reader) *Rattle {
-	if bodyOriginal == nil {
-		return r
-	}
-	return r.setbodyProvider(bodyOriginalProvider{body: bodyOriginal})
+  if bodyOriginal == nil {
+    return r
+  }
+  return r.setbodyProvider(bodyOriginalProvider{body: bodyOriginal})
 }
 
 // BodyJSON sets the json body
 func (r *Rattle) BodyJSON(bodyJSON interface{}, escapeHTML bool) *Rattle {
-	if bodyJSON == nil {
-		return r
-	}
-	return r.setbodyProvider(bodyProviderJson{body: bodyJSON, escapeHTML: escapeHTML})
+  if bodyJSON == nil {
+    return r
+  }
+  return r.setbodyProvider(bodyProviderJson{body: bodyJSON, escapeHTML: escapeHTML})
 }
 
 // BodyForm sets the form body
 func (r *Rattle) BodyForm(bodyForm interface{}) *Rattle {
-	if bodyForm == nil {
-		return r
-	}
-	return r.setbodyProvider(bodyProviderForm{body: bodyForm})
+  if bodyForm == nil {
+    return r
+  }
+  return r.setbodyProvider(bodyProviderForm{body: bodyForm})
 }
 
 // BodyFile sets the send file. The value pointed to by the bodyForm
 func (r *Rattle) BodyFile(fields interface{}, file bodyProviderFileStruct) *Rattle {
-	return r.setbodyProvider(bodyProviderFile{body: fields, file: file})
-}
-
-func NewBodyFile(fieldName, fileName string, file io.Reader) bodyProviderFileStruct {
-	return bodyProviderFileStruct{
-		fieldName: fieldName,
-		fileName:  fileName,
-		file:      file,
-	}
+  return r.setbodyProvider(bodyProviderFile{body: fields, file: file})
 }
 
 // GetRequest returns a new http.Request created with the request properties.
 // Returns any errors parsing the rawURL, encoding query structs, encoding
 // the body, or creating the http.Request.
 func (r *Rattle) GetRequest() (*http.Request, error) {
-	reqURL, err := url.Parse(r.rawURL)
-	if err != nil {
-		return nil, err
-	}
+  reqURL, err := url.Parse(r.rawURL)
+  if err != nil {
+    return nil, err
+  }
 
-	err = genQuery(reqURL, r.parameters)
-	if err != nil {
-		return nil, err
-	}
+  err = genQuery(reqURL, r.parameters)
+  if err != nil {
+    return nil, err
+  }
 
-	var body io.Reader
-	var reqContentType string
-	if r.bodyProvider != nil {
-		body, reqContentType, err = r.bodyProvider.GetBody()
-		if err != nil {
-			return nil, err
-		}
-	}
-	req, err := http.NewRequest(r.method, reqURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-	if !r.config.ReUseTCP {
-		req.Close = true
-	}
-	setHeaders(req, r.header)
-	if req.Header.Get("User-Agent") == "" {
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.119 Safari/537.36")
-	}
+  var body io.Reader
+  var reqContentType string
+  if r.bodyProvider != nil {
+    body, reqContentType, err = r.bodyProvider.GetBody()
+    if err != nil {
+      return nil, err
+    }
+  }
+  req, err := http.NewRequest(r.method, reqURL.String(), body)
+  if err != nil {
+    return nil, err
+  }
+  if !r.config.ReUseTCP {
+    req.Close = true
+  }
+  setHeaders(req, r.header)
+  if req.Header.Get("User-Agent") == "" {
+    req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.119 Safari/537.36")
+  }
 
-	if reqContentType != "" {
-		req.Header.Set(contentType, reqContentType)
-	} else {
-		req.Header.Del(contentType)
-	}
+  if reqContentType != "" {
+    req.Header.Set(contentType, reqContentType)
+  } else {
+    req.Header.Del(contentType)
+  }
 
-	return req, err
+  return req, err
 }
 
 // genQuery parses url tagged query structs using go-querystring to
 // encode them to url.Values and format them onto the url.RawQuery. Any
 // query parsing or encoding errors are returned.
 func genQuery(reqURL *url.URL, params []interface{}) error {
-	urlValues, err := url.ParseQuery(reqURL.RawQuery)
-	if err != nil {
-		return err
-	}
-	// encodes query structs into a url.Values map and merges maps
-	for _, param := range params {
-		queryValues, err := goquery.Values(param)
-		if err != nil {
-			return err
-		}
-		for key, values := range queryValues {
-			for _, value := range values {
-				urlValues.Add(key, value)
-			}
-		}
-	}
-	// url.Values format to a sorted "url encoded" string, e.g. "key=val&foo=bar"
-	reqURL.RawQuery = urlValues.Encode()
-	return nil
+  urlValues, err := url.ParseQuery(reqURL.RawQuery)
+  if err != nil {
+    return err
+  }
+  // encodes query structs into a url.Values map and merges maps
+  for _, param := range params {
+    queryValues, err := goquery.Values(param)
+    if err != nil {
+      return err
+    }
+    for key, values := range queryValues {
+      for _, value := range values {
+        urlValues.Add(key, value)
+      }
+    }
+  }
+  // url.Values format to a sorted "url encoded" string, e.g. "key=val&foo=bar"
+  reqURL.RawQuery = urlValues.Encode()
+  return nil
 }
 
 // setHeaders adds the key, value pairs from the given http.Header to the
 // Rattle. Values for existing keys are appended to the keys values.
 func setHeaders(req *http.Request, headers http.Header) {
-	for key, values := range headers {
-		for _, value := range values {
-			req.Header.Add(key, value)
-		}
-	}
+  for key, values := range headers {
+    for _, value := range values {
+      req.Header.Add(key, value)
+    }
+  }
 }
 
 // return then response
 func (r *Rattle) GetResponse() *http.Response {
-	return r.resp
+  return r.resp
 }
 
 // Send is shorthand for calling Rattle and Do.
 func (r *Rattle) Send() (result []byte, code int, err error) {
-	var req *http.Request
-	req, err = r.GetRequest()
-	if err != nil {
-		return []byte{}, 0, err
-	}
-	result, code, err = r.Do(req)
-	return
+  var req *http.Request
+  req, err = r.GetRequest()
+  if err != nil {
+    return []byte{}, 0, err
+  }
+  result, code, err = r.Do(req)
+  return
 }
 
 // Do sends an HTTP Request and returns the result. status code and error
 func (r *Rattle) Do(req *http.Request) ([]byte, int, error) {
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer func() {
-		resp.Close = true
-		resp.Body.Close()
-	}()
-	r.resp = resp
+  resp, err := r.httpClient.Do(req)
+  if err != nil {
+    return nil, 0, err
+  }
+  defer func() {
+    resp.Close = true
+    _ = resp.Body.Close()
+  }()
+  r.resp = resp
 
-	//if resp.StatusCode >= 400 {
-	//	return nil, resp.StatusCode, fmt.Errorf("%s", resp.Status)
-	//}
-	res, err := ioutil.ReadAll(resp.Body)
+  //if resp.StatusCode >= 400 {
+  //	return nil, resp.StatusCode, fmt.Errorf("%s", resp.Status)
+  //}
+  res, err := ioutil.ReadAll(resp.Body)
 
-	return res, resp.StatusCode, err
+  return res, resp.StatusCode, err
 }
 
 // AddQuery add queries for GET request
 func (r *Rattle) AddQuery(params interface{}) *Rattle {
-	if params != nil {
-		r.parameters = append(r.parameters, params)
-	}
-	return r
+  if params != nil {
+    r.parameters = append(r.parameters, params)
+  }
+  return r
 }

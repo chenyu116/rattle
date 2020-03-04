@@ -29,7 +29,7 @@ type TestParams struct {
 var params = TestParams{Name: "recent", Count: 25}
 
 func TestNew(t *testing.T) {
-	rattle := New(NewConfig())
+	rattle := New()
 	if rattle.header == nil {
 		t.Errorf("Header map not initialized with make")
 	}
@@ -39,7 +39,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestRattleChild(t *testing.T) {
-	Rattle := New(NewConfig()).BaseURL("http://example.com").AddQuery(params)
+	Rattle := New().BaseURL("http://example.com").AddQuery(params)
 	child := Rattle.New()
 	if child.httpClient != Rattle.httpClient {
 		t.Errorf("expected %v, got %v", Rattle.httpClient, child.httpClient)
@@ -87,13 +87,12 @@ func TestProxy(t *testing.T) {
 	}
 }
 func TestRequest_query(t *testing.T) {
-	config := NewConfig()
 	cases := []struct {
 		rattle      *Rattle
 		expectedURL string
 	}{
-		{New(config).Get("http://example.com").AddQuery(params), "http://example.com?count=25&name=recent"},
-		{New(config).Get("http://example.com").AddQuery(params).New(), "http://example.com?count=25&name=recent"},
+		{New().Get("http://example.com").AddQuery(params), "http://example.com?count=25&name=recent"},
+		{New().Get("http://example.com").AddQuery(params).New(), "http://example.com?count=25&name=recent"},
 	}
 	for _, c := range cases {
 		req, _ := c.rattle.GetRequest()
@@ -104,14 +103,13 @@ func TestRequest_query(t *testing.T) {
 }
 
 func TestRequest_headers(t *testing.T) {
-	config := NewConfig()
 	cases := []struct {
 		rattle         *Rattle
 		expectedHeader map[string][]string
 	}{
-		{New(config).SetHeader("authorization", "OAuth key=\"value\""), map[string][]string{"Authorization": []string{"OAuth key=\"value\""}}},
+		{New().SetHeader("authorization", "OAuth key=\"value\""), map[string][]string{"Authorization": []string{"OAuth key=\"value\""}}},
 		// header keys should be canonicalized
-		{New(config).New().SetHeader("authorization", "OAuth key=\"value\""), map[string][]string{"Authorization": []string{"OAuth key=\"value\""}}},
+		{New().New().SetHeader("authorization", "OAuth key=\"value\""), map[string][]string{"Authorization": []string{"OAuth key=\"value\""}}},
 	}
 	for _, c := range cases {
 		req, _ := c.rattle.GetRequest()
